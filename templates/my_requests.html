@@ -12,7 +12,7 @@
       {% set status = r.request_status|status_label %}
       <a class="req-row" href="{{ url_for('request_detail', request_id=r.id) }}">
         <div class="info">
-          <div class="name">{{ r.name }}</div>
+          <div class="name">{{ r.name|strip_tag }}</div>
           <div class="meta">
             #{{ r.id }}
             {% if r.category_id %} · {{ r.category_id|m2o_name }}{% endif %}

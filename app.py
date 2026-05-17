@@ -210,10 +210,32 @@ def find_category_id(req_type_key):
     return None
 
 
-def build_description(req_type_key, employee, form_data):
+def approval_request_fields():
+    """Return the dict of fields available on approval.request."""
+    return odoo_execute(
+        "approval.request",
+        "fields_get",
+        [],
+        {"attributes": ["string", "type"]},
+    )
+
+
+# Candidate field names (in priority order) for the request body / notes.
+# In Odoo V19 'description' was removed from approval.request; 'reason' is
+# the typical replacement, but installs vary, so probe and pick the first match.
+DESCRIPTION_FIELD_CANDIDATES = ("reason", "note", "description", "request_note")
+
+
+def pick_description_field(available_fields):
+    for f in DESCRIPTION_FIELD_CANDIDATES:
+        if f in available_fields:
+            return f
+    return None
+
+
+def build_body(req_type_key, employee, form_data):
     cfg = REQUEST_TYPES[req_type_key]
     lines = [
-        EMP_TAG.format(emp_id=employee["id"]),
         f"Request Type: {cfg['en']} ({cfg['ar']})",
         f"Employee: {employee['name']} (ID: {employee['id']})",
         "",
@@ -226,20 +248,30 @@ def build_description(req_type_key, employee, form_data):
     return "\n".join(lines)
 
 
+def build_name(req_type_key, employee):
+    """Title that also embeds the marker so we can filter requests per employee."""
+    cfg = REQUEST_TYPES[req_type_key]
+    tag = EMP_TAG.format(emp_id=employee["id"])
+    return f"{tag} [{cfg['en']}] - {employee['name']} (ID: {employee['id']}) - {cfg['ar']}"
+
+
 def create_approval_request(req_type_key, employee, form_data):
     cfg = REQUEST_TYPES[req_type_key]
     admin_uid = get_admin_uid()
     if not admin_uid:
         raise RuntimeError("Cannot authenticate to Odoo.")
 
-    description = build_description(req_type_key, employee, form_data)
-    name = f"{cfg['ar']} - {employee['name']}"
+    fields = approval_request_fields()
+    desc_field = pick_description_field(fields)
+    body = build_body(req_type_key, employee, form_data)
 
     vals = {
-        "name": name,
+        "name": build_name(req_type_key, employee),
         "request_owner_id": admin_uid,
-        "description": description,
     }
+    if desc_field:
+        vals[desc_field] = body
+
     category_id = find_category_id(req_type_key)
     if category_id:
         vals["category_id"] = category_id
@@ -256,7 +288,7 @@ def create_approval_request(req_type_key, employee, form_data):
 
 def list_employee_requests(employee_id):
     tag = EMP_TAG.format(emp_id=employee_id)
-    domain = [("description", "ilike", tag)]
+    domain = [("name", "ilike", tag)]
     fields = ["id", "name", "request_status", "date_confirmed", "create_date", "category_id"]
     try:
         records = odoo_execute(
@@ -273,18 +305,28 @@ def list_employee_requests(employee_id):
 
 def get_request_detail(employee_id, request_id):
     tag = EMP_TAG.format(emp_id=employee_id)
+    try:
+        available = approval_request_fields()
+    except Exception:
+        available = {}
+    desc_field = pick_description_field(available)
+
+    detail_fields = ["id", "name", "request_status", "date_confirmed",
+                     "create_date", "category_id", "approver_ids"]
+    if desc_field:
+        detail_fields.append(desc_field)
+
     records = odoo_execute(
         "approval.request",
         "search_read",
-        [[("id", "=", int(request_id)), ("description", "ilike", tag)]],
-        {"fields": [
-            "id", "name", "request_status", "description",
-            "date_confirmed", "create_date", "category_id", "approver_ids",
-        ]},
+        [[("id", "=", int(request_id)), ("name", "ilike", tag)]],
+        {"fields": detail_fields},
     )
     if not records:
         return None, []
     record = records[0]
+    # Normalize the description-like field under a stable key for templates.
+    record["body"] = record.get(desc_field, "") if desc_field else ""
 
     messages = []
     try:
@@ -342,6 +384,8 @@ def debug():
         "employees":     {"count_active": None, "count_all": None,
                           "sample": None, "error": None},
         "search_test":   {"empty_query_results": None, "error": None},
+        "approval_request": {"fields": None, "picked_description_field": None,
+                             "categories_sample": None, "error": None},
     }
 
     # Step 1: authentication.
@@ -399,6 +443,32 @@ def debug():
             report["search_test"]["empty_query_results"] = results
         except Exception as exc:
             report["search_test"]["error"] = repr(exc)
+
+        try:
+            ar_fields = approval_request_fields()
+            summary = {k: {"string": v.get("string"), "type": v.get("type")}
+                       for k, v in ar_fields.items()
+                       if k in (
+                           "name", "request_owner_id", "category_id",
+                           "request_status", "reason", "note", "description",
+                           "request_note", "date_confirmed", "approver_ids",
+                       )}
+            report["approval_request"]["fields"] = {
+                "all_names": sorted(ar_fields.keys()),
+                "relevant": summary,
+            }
+            report["approval_request"]["picked_description_field"] = pick_description_field(ar_fields)
+        except Exception as exc:
+            report["approval_request"]["error"] = repr(exc)
+
+        try:
+            cats = odoo_execute(
+                "approval.category", "search_read", [[]],
+                {"fields": ["id", "name"], "limit": 20})
+            report["approval_request"]["categories_sample"] = cats
+        except Exception as exc:
+            existing = report["approval_request"].get("error") or ""
+            report["approval_request"]["error"] = (existing + " | categories: " + repr(exc)).strip(" |")
 
     pretty = _format_debug_html(report)
     return pretty, 200, {"Content-Type": "text/html; charset=utf-8"}
@@ -580,6 +650,18 @@ def request_detail(request_id):
         record=record,
         messages=messages,
     )
+
+
+import re as _re
+_TAG_RE = _re.compile(r"\[HR-PORTAL-EMP:\d+\]\s*")
+
+
+@app.template_filter("strip_tag")
+def strip_tag(value):
+    """Remove the internal [HR-PORTAL-EMP:N] marker from a request title."""
+    if not value:
+        return ""
+    return _TAG_RE.sub("", str(value)).strip()
 
 
 @app.template_filter("m2o_name")

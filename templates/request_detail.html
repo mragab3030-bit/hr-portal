@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ record.name }}{% endblock %}
+{% block title %}{{ record.name|strip_tag }}{% endblock %}
 {% block content %}
 <a class="back-link" href="{{ url_for('my_requests') }}">← طلباتي / My Requests</a>
 
@@ -7,7 +7,7 @@
   {% set status = record.request_status|status_label %}
   <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
     <div>
-      <h1 style="margin-bottom: 4px;">{{ record.name }}</h1>
+      <h1 style="margin-bottom: 4px;">{{ record.name|strip_tag }}</h1>
       <div class="subtitle">
         #{{ record.id }}
         {% if record.category_id %} · {{ record.category_id|m2o_name }}{% endif %}
@@ -24,7 +24,7 @@
   </div>
 
   <h2 style="margin-top: 20px;">تفاصيل الطلب / Details</h2>
-  <div class="description-block">{{ record.description }}</div>
+  <div class="description-block">{{ record.body or record.name }}</div>
 </div>
 
 {% if messages %}

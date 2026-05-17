@@ -216,7 +216,7 @@ def approval_request_fields():
         "approval.request",
         "fields_get",
         [],
-        {"attributes": ["string", "type"]},
+        {"attributes": ["string", "type", "relation"]},
     )
 
 
@@ -224,6 +224,11 @@ def approval_request_fields():
 # In Odoo V19 'description' was removed from approval.request; 'reason' is
 # the typical replacement, but installs vary, so probe and pick the first match.
 DESCRIPTION_FIELD_CANDIDATES = ("reason", "note", "description", "request_note")
+
+# Many2one to hr.employee on approval.request, when present, lets us link the
+# request to the actual employee record (shows employee name in Odoo and lets
+# us filter without a description marker).
+EMPLOYEE_FIELD_CANDIDATES = ("employee_id", "x_employee_id", "hr_employee_id")
 
 
 def pick_description_field(available_fields):
@@ -233,14 +238,25 @@ def pick_description_field(available_fields):
     return None
 
 
-def build_body(req_type_key, employee, form_data):
+def pick_employee_field(available_fields):
+    for f in EMPLOYEE_FIELD_CANDIDATES:
+        info = available_fields.get(f)
+        if info and info.get("type") == "many2one":
+            return f
+    return None
+
+
+def build_body(req_type_key, employee, form_data, include_marker=False):
     cfg = REQUEST_TYPES[req_type_key]
-    lines = [
+    lines = []
+    if include_marker:
+        lines.append(EMP_TAG.format(emp_id=employee["id"]))
+    lines.extend([
         f"Request Type: {cfg['en']} ({cfg['ar']})",
         f"Employee: {employee['name']} (ID: {employee['id']})",
         "",
         "--- Details ---",
-    ]
+    ])
     for field in cfg["fields"]:
         value = form_data.get(field["name"], "").strip()
         if value:
@@ -249,10 +265,9 @@ def build_body(req_type_key, employee, form_data):
 
 
 def build_name(req_type_key, employee):
-    """Title that also embeds the marker so we can filter requests per employee."""
+    """Clean human-readable title — no internal markers."""
     cfg = REQUEST_TYPES[req_type_key]
-    tag = EMP_TAG.format(emp_id=employee["id"])
-    return f"{tag} [{cfg['en']}] - {employee['name']} (ID: {employee['id']}) - {cfg['ar']}"
+    return f"{cfg['ar']} - {employee['name']}"
 
 
 def create_approval_request(req_type_key, employee, form_data):
@@ -263,7 +278,13 @@ def create_approval_request(req_type_key, employee, form_data):
 
     fields = approval_request_fields()
     desc_field = pick_description_field(fields)
-    body = build_body(req_type_key, employee, form_data)
+    emp_field = pick_employee_field(fields)
+
+    # If the model has a direct employee link we can filter on that and skip the
+    # description marker entirely. Otherwise we still need the marker in the
+    # description-like field as a filtering fallback.
+    needs_marker = emp_field is None
+    body = build_body(req_type_key, employee, form_data, include_marker=needs_marker)
 
     vals = {
         "name": build_name(req_type_key, employee),
@@ -271,6 +292,8 @@ def create_approval_request(req_type_key, employee, form_data):
     }
     if desc_field:
         vals[desc_field] = body
+    if emp_field:
+        vals[emp_field] = int(employee["id"])
 
     category_id = find_category_id(req_type_key)
     if category_id:
@@ -286,9 +309,30 @@ def create_approval_request(req_type_key, employee, form_data):
     return request_id
 
 
-def list_employee_requests(employee_id):
+def _employee_filter_domain(employee_id, available_fields):
+    """Build the domain clause that scopes requests to one employee.
+
+    Prefers a direct employee_id field if present; falls back to the marker
+    inside the description-like field; final fallback is the marker in `name`
+    (covers legacy records created before the title was cleaned up).
+    """
     tag = EMP_TAG.format(emp_id=employee_id)
-    domain = [("name", "ilike", tag)]
+    emp_field = pick_employee_field(available_fields)
+    if emp_field:
+        return [(emp_field, "=", int(employee_id))]
+    desc_field = pick_description_field(available_fields)
+    if desc_field:
+        return [(desc_field, "ilike", tag)]
+    return [("name", "ilike", tag)]
+
+
+def list_employee_requests(employee_id):
+    try:
+        available = approval_request_fields()
+    except Exception as exc:
+        app.logger.error("approval_request_fields failed: %s", exc)
+        return []
+    domain = _employee_filter_domain(employee_id, available)
     fields = ["id", "name", "request_status", "date_confirmed", "create_date", "category_id"]
     try:
         records = odoo_execute(
@@ -304,22 +348,23 @@ def list_employee_requests(employee_id):
 
 
 def get_request_detail(employee_id, request_id):
-    tag = EMP_TAG.format(emp_id=employee_id)
     try:
         available = approval_request_fields()
     except Exception:
         available = {}
     desc_field = pick_description_field(available)
+    scope = _employee_filter_domain(employee_id, available)
 
     detail_fields = ["id", "name", "request_status", "date_confirmed",
                      "create_date", "category_id", "approver_ids"]
     if desc_field:
         detail_fields.append(desc_field)
 
+    domain = [("id", "=", int(request_id))] + scope
     records = odoo_execute(
         "approval.request",
         "search_read",
-        [[("id", "=", int(request_id)), ("name", "ilike", tag)]],
+        [domain],
         {"fields": detail_fields},
     )
     if not records:
@@ -385,6 +430,8 @@ def debug():
                           "sample": None, "error": None},
         "search_test":   {"empty_query_results": None, "error": None},
         "approval_request": {"fields": None, "picked_description_field": None,
+                             "picked_employee_field": None,
+                             "employee_like_fields": None,
                              "categories_sample": None, "error": None},
     }
 
@@ -452,12 +499,20 @@ def debug():
                            "name", "request_owner_id", "category_id",
                            "request_status", "reason", "note", "description",
                            "request_note", "date_confirmed", "approver_ids",
+                           "employee_id", "x_employee_id", "hr_employee_id",
                        )}
+            # Also surface every employee-ish field so we don't miss a custom one.
+            emp_like = {k: {"string": v.get("string"), "type": v.get("type"),
+                            "relation": v.get("relation")}
+                        for k, v in ar_fields.items()
+                        if "employee" in k.lower()}
             report["approval_request"]["fields"] = {
                 "all_names": sorted(ar_fields.keys()),
                 "relevant": summary,
             }
             report["approval_request"]["picked_description_field"] = pick_description_field(ar_fields)
+            report["approval_request"]["picked_employee_field"] = pick_employee_field(ar_fields)
+            report["approval_request"]["employee_like_fields"] = emp_like
         except Exception as exc:
             report["approval_request"]["error"] = repr(exc)
 

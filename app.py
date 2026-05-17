@@ -264,24 +264,29 @@ def _format_field_value(field, raw):
 
 
 def build_body(req_type_key, employee, form_data, include_marker=False):
+    """Build the request body as HTML — Odoo renders the description as HTML."""
+    from html import escape as _esc
+
     cfg = REQUEST_TYPES[req_type_key]
     today = datetime.now().strftime("%d/%m/%Y")
 
-    lines = []
+    def row(label_ar, label_en, value):
+        return (f"<p><strong>{_esc(label_ar)} / {_esc(label_en)}:</strong> "
+                f"{_esc(value)}</p>")
+
+    parts = []
     if include_marker:
-        lines.append(EMP_TAG.format(emp_id=employee["id"]))
-        lines.append("")
-    lines.append(f"الموظف / Employee: {employee['name']}")
-    lines.append(f"النوع / Request Type: {cfg['ar']} ({cfg['en']})")
-    lines.append(f"التاريخ / Date: {today}")
-    lines.append("")
-    lines.append("التفاصيل / Details:")
-    lines.append("─" * 20)
+        parts.append(f"<p>{_esc(EMP_TAG.format(emp_id=employee['id']))}</p>")
+    parts.append(row("الموظف", "Employee", employee["name"]))
+    parts.append(row("النوع", "Request Type", cfg["ar"]))
+    parts.append(row("التاريخ", "Date", today))
+    parts.append("<hr/>")
+    parts.append("<p><strong>التفاصيل / Details:</strong></p>")
     for field in cfg["fields"]:
         value = _format_field_value(field, form_data.get(field["name"], ""))
         if value:
-            lines.append(f"{field['ar']} / {field['en']}: {value}")
-    return "\n".join(lines)
+            parts.append(row(field["ar"], field["en"], value))
+    return "\n".join(parts)
 
 
 def build_name(req_type_key, employee):

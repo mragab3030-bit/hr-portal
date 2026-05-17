@@ -289,13 +289,19 @@
     .description-block {
       background: var(--green-50);
       border: 1px solid var(--green-100);
-      padding: 14px;
+      padding: 14px 18px;
       border-radius: 10px;
-      white-space: pre-wrap;
-      font-family: 'Cairo', 'Inter', monospace;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
       color: var(--green-900);
+      line-height: 1.6;
     }
+    .description-block p { margin: 6px 0; }
+    .description-block hr {
+      border: none;
+      border-top: 1px solid var(--green-300);
+      margin: 10px 0;
+    }
+    .description-block strong { color: var(--green-900); }
 
     .message {
       background: white;

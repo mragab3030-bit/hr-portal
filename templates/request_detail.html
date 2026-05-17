@@ -24,7 +24,9 @@
   </div>
 
   <h2 style="margin-top: 20px;">تفاصيل الطلب / Details</h2>
-  <div class="description-block">{{ record.body or record.name }}</div>
+  <div class="description-block">
+    {% if record.body %}{{ record.body|safe }}{% else %}{{ record.name|strip_tag }}{% endif %}
+  </div>
 </div>
 
 {% if messages %}

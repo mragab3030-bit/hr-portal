@@ -246,21 +246,41 @@ def pick_employee_field(available_fields):
     return None
 
 
+def _format_field_value(field, raw):
+    value = (raw or "").strip()
+    if not value:
+        return ""
+    if field.get("type") == "date":
+        # HTML date inputs return YYYY-MM-DD — render as DD/MM/YYYY.
+        try:
+            return datetime.strptime(value, "%Y-%m-%d").strftime("%d/%m/%Y")
+        except ValueError:
+            return value
+    if field.get("type") == "select":
+        for opt in field.get("options", []):
+            if opt.get("value") == value:
+                return f"{opt['ar']} ({opt['en']})"
+    return value
+
+
 def build_body(req_type_key, employee, form_data, include_marker=False):
     cfg = REQUEST_TYPES[req_type_key]
+    today = datetime.now().strftime("%d/%m/%Y")
+
     lines = []
     if include_marker:
         lines.append(EMP_TAG.format(emp_id=employee["id"]))
-    lines.extend([
-        f"Request Type: {cfg['en']} ({cfg['ar']})",
-        f"Employee: {employee['name']} (ID: {employee['id']})",
-        "",
-        "--- Details ---",
-    ])
+        lines.append("")
+    lines.append(f"الموظف / Employee: {employee['name']}")
+    lines.append(f"النوع / Request Type: {cfg['ar']} ({cfg['en']})")
+    lines.append(f"التاريخ / Date: {today}")
+    lines.append("")
+    lines.append("التفاصيل / Details:")
+    lines.append("─" * 20)
     for field in cfg["fields"]:
-        value = form_data.get(field["name"], "").strip()
+        value = _format_field_value(field, form_data.get(field["name"], ""))
         if value:
-            lines.append(f"{field['en']} / {field['ar']}: {value}")
+            lines.append(f"{field['ar']} / {field['en']}: {value}")
     return "\n".join(lines)
 
 

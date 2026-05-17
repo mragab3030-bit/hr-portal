@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ cfg.ar }} / {{ cfg.en }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('home') }}">← رجوع للرئيسية / Back to Home</a>
+
+<div class="card">
+  <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 14px;">
+    <div class="icon" style="font-size: 1.8rem; width: 52px; height: 52px;
+            border-radius: 12px; background: var(--green-50);
+            display: flex; align-items: center; justify-content: center;
+            border: 1px solid var(--green-100);">
+      {{ cfg.icon }}
+    </div>
+    <div>
+      <h1 style="margin: 0;">{{ cfg.ar }}</h1>
+      <div class="subtitle" style="margin: 0;">{{ cfg.en }}</div>
+    </div>
+  </div>
+
+  <form method="post" autocomplete="off">
+    {% for field in cfg.fields %}
+      <div class="field">
+        <label for="{{ field.name }}">
+          {{ field.ar }}
+          {% if field.required %}<span class="req">*</span>{% endif %}
+          <span class="en">{{ field.en }}</span>
+        </label>
+
+        {% if field.type == 'textarea' %}
+          <textarea id="{{ field.name }}" name="{{ field.name }}"
+                    {% if field.required %}required{% endif %}>{{ form_data.get(field.name, '') }}</textarea>
+
+        {% elif field.type == 'select' %}
+          <select id="{{ field.name }}" name="{{ field.name }}"
+                  {% if field.required %}required{% endif %}>
+            <option value="">-- اختر / Select --</option>
+            {% for opt in field.options %}
+              <option value="{{ opt.value }}"
+                {% if form_data.get(field.name) == opt.value %}selected{% endif %}>
+                {{ opt.ar }} / {{ opt.en }}
+              </option>
+            {% endfor %}
+          </select>
+
+        {% elif field.type == 'date' %}
+          <input type="date" id="{{ field.name }}" name="{{ field.name }}"
+                 value="{{ form_data.get(field.name, '') }}"
+                 {% if field.required %}required{% endif %} />
+
+        {% else %}
+          <input type="text" id="{{ field.name }}" name="{{ field.name }}"
+                 value="{{ form_data.get(field.name, '') }}"
+                 {% if field.required %}required{% endif %} />
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <div class="btn-row">
+      <a class="btn secondary" href="{{ url_for('home') }}">إلغاء / Cancel</a>
+      <button type="submit" class="btn">إرسال الطلب / Submit</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

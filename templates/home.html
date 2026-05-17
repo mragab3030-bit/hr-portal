@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}الرئيسية / Home{% endblock %}
+{% block content %}
+<section class="welcome">
+  <h2>مرحبا {{ employee_name }} 👋</h2>
+  <div class="job">
+    {% if employee_job %}{{ employee_job }}<br/>{% endif %}
+    Welcome to the HR Employee Portal
+  </div>
+</section>
+
+<div class="card">
+  <h2 style="margin-bottom: 4px;">طلباتي الجديدة</h2>
+  <p class="subtitle">اختر نوع الطلب / Choose a request type</p>
+
+  <div class="grid-cards">
+    {% for key, cfg in request_types.items() %}
+      <a class="req-card" href="{{ url_for('request_form', req_type=key) }}">
+        <div class="icon">{{ cfg.icon }}</div>
+        <div class="ar">{{ cfg.ar }}</div>
+        <div class="en">{{ cfg.en }}</div>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+<div style="margin-top: 14px;">
+  <a class="btn secondary" href="{{ url_for('my_requests') }}">
+    📋 طلباتي السابقة / My Requests
+  </a>
+</div>
+{% endblock %}

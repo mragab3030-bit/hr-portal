@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#16a34a" />
+  <title>{% block title %}بوابة الموظفين / HR Portal{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green-50:  #f0fdf4;
+      --green-100: #dcfce7;
+      --green-300: #86efac;
+      --green-500: #22c55e;
+      --green-600: #16a34a;
+      --green-700: #15803d;
+      --green-900: #14532d;
+      --bg: #f6fbf7;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --shadow: 0 4px 18px rgba(20, 83, 45, 0.06);
+      --radius: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      font-family: 'Cairo', 'Inter', system-ui, -apple-system, Segoe UI, Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--green-700); text-decoration: none; }
+    a:hover { color: var(--green-900); }
+    .topbar {
+      background: linear-gradient(135deg, var(--green-600), var(--green-700));
+      color: white;
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+    .topbar .brand {
+      font-weight: 700;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .topbar .brand .logo {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      background: white;
+      color: var(--green-700);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800;
+    }
+    .topbar a, .topbar a:hover {
+      color: white;
+      font-size: 0.9rem;
+    }
+    .topbar .nav {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+    }
+    .topbar .nav a {
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+    .topbar .nav a:hover { background: rgba(255,255,255,0.12); }
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      border: 1px solid var(--border);
+    }
+    .card + .card { margin-top: 14px; }
+    h1, h2, h3 { color: var(--green-900); margin-top: 0; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+    .subtitle {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-bottom: 18px;
+    }
+    .flash-list {
+      list-style: none;
+      padding: 0; margin: 0 0 14px 0;
+    }
+    .flash {
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      font-size: 0.92rem;
+      border: 1px solid transparent;
+    }
+    .flash.success {
+      background: var(--green-50);
+      color: var(--green-900);
+      border-color: var(--green-300);
+    }
+    .flash.error {
+      background: #fef2f2;
+      color: #991b1b;
+      border-color: #fecaca;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--green-900);
+      font-size: 0.95rem;
+    }
+    label .en {
+      color: var(--muted);
+      font-weight: 400;
+      font-size: 0.85rem;
+      margin-inline-start: 4px;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      font-family: inherit;
+      font-size: 1rem;
+      background: white;
+      color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--green-500);
+      box-shadow: 0 0 0 3px var(--green-100);
+    }
+    textarea { min-height: 90px; resize: vertical; }
+    .field { margin-bottom: 14px; }
+    .field .req { color: #dc2626; margin-inline-start: 4px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 16px;
+      background: var(--green-600);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background .15s, transform .05s;
+      font-family: inherit;
+    }
+    .btn:hover { background: var(--green-700); }
+    .btn:active { transform: translateY(1px); }
+    .btn.secondary {
+      background: white;
+      color: var(--green-700);
+      border: 1px solid var(--green-300);
+    }
+    .btn.secondary:hover { background: var(--green-50); }
+    .btn-row { display: flex; gap: 10px; }
+    .btn-row .btn { flex: 1; }
+
+    .grid-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    .req-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform .12s, box-shadow .15s, border-color .15s;
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      justify-content: center;
+      min-height: 130px;
+    }
+    .req-card:hover {
+      border-color: var(--green-500);
+      box-shadow: var(--shadow);
+      transform: translateY(-2px);
+    }
+    .req-card .icon {
+      font-size: 2rem;
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      background: var(--green-50);
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--green-100);
+    }
+    .req-card .ar {
+      font-weight: 700;
+      color: var(--green-900);
+      font-size: 0.98rem;
+    }
+    .req-card .en {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .candidate-list { list-style: none; margin: 0; padding: 0; }
+    .candidate-list li { margin-bottom: 8px; }
+    .candidate-btn {
+      width: 100%;
+      text-align: start;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color .15s, background .15s;
+    }
+    .candidate-btn:hover {
+      border-color: var(--green-500);
+      background: var(--green-50);
+    }
+    .candidate-btn .name { font-weight: 700; color: var(--green-900); }
+    .candidate-btn .meta { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+
+    .req-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      padding: 14px;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid var(--border);
+      margin-bottom: 10px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color .15s, background .15s;
+    }
+    .req-row:hover { border-color: var(--green-500); background: var(--green-50); }
+    .req-row .info .name { font-weight: 700; color: var(--green-900); }
+    .req-row .info .meta { color: var(--muted); font-size: 0.82rem; margin-top: 2px; }
+
+    .badge {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .status-new { background: #e0f2fe; color: #075985; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-approved { background: var(--green-100); color: var(--green-900); }
+    .status-refused { background: #fee2e2; color: #991b1b; }
+    .status-cancel { background: #e5e7eb; color: #374151; }
+
+    .empty {
+      text-align: center;
+      padding: 36px 18px;
+      color: var(--muted);
+    }
+    .empty .icon { font-size: 3rem; opacity: 0.6; }
+
+    .description-block {
+      background: var(--green-50);
+      border: 1px solid var(--green-100);
+      padding: 14px;
+      border-radius: 10px;
+      white-space: pre-wrap;
+      font-family: 'Cairo', 'Inter', monospace;
+      font-size: 0.9rem;
+      color: var(--green-900);
+    }
+
+    .message {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+    .message .author { font-weight: 700; color: var(--green-900); }
+    .message .date { color: var(--muted); font-size: 0.78rem; }
+    .message .body { margin-top: 6px; color: var(--text); }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+      color: var(--green-700);
+      font-weight: 600;
+      font-size: 0.92rem;
+    }
+    .welcome {
+      background: linear-gradient(135deg, var(--green-600), var(--green-700));
+      color: white;
+      padding: 22px;
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    .welcome h2 { color: white; margin: 0 0 4px 0; }
+    .welcome .job { color: rgba(255,255,255,0.85); font-size: 0.9rem; }
+
+    @media (max-width: 480px) {
+      h1 { font-size: 1.2rem; }
+      .container { padding: 14px; }
+      .card { padding: 18px; }
+      .grid-cards { gap: 10px; }
+      .req-card { padding: 14px 8px; min-height: 120px; }
+      .req-card .ar { font-size: 0.9rem; }
+      .topbar .brand { font-size: 0.95rem; }
+    }
+  </style>
+</head>
+<body>
+  {% if session.employee_id %}
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">HR</span>
+      <span>بوابة الموظفين</span>
+    </div>
+    <nav class="nav">
+      <a href="{{ url_for('home') }}">الرئيسية</a>
+      <a href="{{ url_for('my_requests') }}">طلباتي</a>
+      <a href="{{ url_for('logout') }}">خروج</a>
+    </nav>
+  </header>
+  {% endif %}
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <ul class="flash-list">
+          {% for category, message in messages %}
+            <li class="flash {{ category }}">{{ message }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

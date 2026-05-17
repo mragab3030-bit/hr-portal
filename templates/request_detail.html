@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ record.name }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('my_requests') }}">← طلباتي / My Requests</a>
+
+<div class="card">
+  {% set status = record.request_status|status_label %}
+  <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+    <div>
+      <h1 style="margin-bottom: 4px;">{{ record.name }}</h1>
+      <div class="subtitle">
+        #{{ record.id }}
+        {% if record.category_id %} · {{ record.category_id[1] }}{% endif %}
+      </div>
+    </div>
+    <span class="badge {{ status[2] }}">{{ status[0] }} / {{ status[1] }}</span>
+  </div>
+
+  <div style="margin-top: 8px; color: var(--muted); font-size: 0.88rem;">
+    تاريخ الإنشاء / Created: {{ record.create_date|fmt_date }}
+    {% if record.date_confirmed %}
+      · تاريخ التأكيد / Confirmed: {{ record.date_confirmed|fmt_date }}
+    {% endif %}
+  </div>
+
+  <h2 style="margin-top: 20px;">تفاصيل الطلب / Details</h2>
+  <div class="description-block">{{ record.description }}</div>
+</div>
+
+{% if messages %}
+<div class="card">
+  <h2>الملاحظات والتعليقات / Comments</h2>
+  {% for m in messages %}
+    {% if m.body and m.body|trim %}
+      <div class="message">
+        <div style="display: flex; justify-content: space-between; gap: 10px;">
+          <span class="author">
+            {% if m.author_id %}{{ m.author_id[1] }}{% else %}System{% endif %}
+          </span>
+          <span class="date">{{ m.date|fmt_date }}</span>
+        </div>
+        <div class="body">{{ m.body|safe }}</div>
+      </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

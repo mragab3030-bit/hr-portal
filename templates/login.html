@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}تسجيل الدخول / Login{% endblock %}
+{% block content %}
+<div class="card" style="margin-top: 30px;">
+  <div style="text-align: center; margin-bottom: 16px;">
+    <div style="width: 64px; height: 64px; margin: 0 auto 12px; border-radius: 16px;
+                background: var(--green-50); display: flex; align-items: center; justify-content: center;
+                border: 1px solid var(--green-100); font-size: 1.7rem; color: var(--green-700); font-weight: 800;">
+      HR
+    </div>
+    <h1 style="margin-bottom: 4px;">بوابة الموظفين</h1>
+    <div class="subtitle">HR Employee Portal</div>
+  </div>
+
+  {% if step == 'search' %}
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="action" value="search" />
+      <div class="field">
+        <label for="query">
+          الاسم أو رقم الموظف
+          <span class="en">Name or Employee Number</span>
+        </label>
+        <input type="text" id="query" name="query" required autofocus
+               placeholder="مثال: محمد أحمد / EMP001" />
+      </div>
+      <button type="submit" class="btn">بحث / Search</button>
+    </form>
+
+  {% elif step == 'select' %}
+    <p class="subtitle">اختر اسمك من القائمة / Select your name from the list</p>
+    {% if candidates %}
+      <ul class="candidate-list">
+        {% for c in candidates %}
+          <li>
+            <form method="post">
+              <input type="hidden" name="action" value="select" />
+              <input type="hidden" name="employee_id" value="{{ c.id }}" />
+              <button type="submit" class="candidate-btn">
+                <div class="name">{{ c.name }}</div>
+                <div class="meta">
+                  {% if c.barcode %}#{{ c.barcode }}{% endif %}
+                  {% if c.job_title %} · {{ c.job_title }}{% endif %}
+                  {% if c.department_id %} · {{ c.department_id[1] }}{% endif %}
+                </div>
+              </button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    <div style="margin-top: 14px;">
+      <a class="back-link" href="{{ url_for('login') }}">← رجوع / Back</a>
+    </div>
+
+  {% elif step == 'pin' and selected_employee %}
+    <p class="subtitle">
+      مرحبا <strong>{{ selected_employee.name }}</strong> — أدخل الرقم السري<br/>
+      <span style="color: var(--muted); font-size: 0.85rem;">Enter your PIN code</span>
+    </p>
+    <form method="post" autocomplete="off">
+      <input type="hidden" name="action" value="verify_pin" />
+      <input type="hidden" name="employee_id" value="{{ selected_employee.id }}" />
+      <div class="field">
+        <label for="pin">
+          الرقم السري
+          <span class="en">PIN</span>
+        </label>
+        <input type="password" id="pin" name="pin" inputmode="numeric"
+               pattern="[0-9]*" required autofocus
+               placeholder="****" />
+      </div>
+      <div class="btn-row">
+        <a class="btn secondary" href="{{ url_for('login') }}">رجوع / Back</a>
+        <button type="submit" class="btn">دخول / Login</button>
+      </div>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

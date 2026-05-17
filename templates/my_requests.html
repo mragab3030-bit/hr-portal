@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}طلباتي / My Requests{% endblock %}
+{% block content %}
+<a class="back-link" href="{{ url_for('home') }}">← الرئيسية / Home</a>
+
+<div class="card">
+  <h1>طلباتي</h1>
+  <div class="subtitle">My submitted requests</div>
+
+  {% if records %}
+    {% for r in records %}
+      {% set status = r.request_status|status_label %}
+      <a class="req-row" href="{{ url_for('request_detail', request_id=r.id) }}">
+        <div class="info">
+          <div class="name">{{ r.name }}</div>
+          <div class="meta">
+            #{{ r.id }}
+            {% if r.category_id %} · {{ r.category_id[1] }}{% endif %}
+            · {{ r.create_date|fmt_date }}
+          </div>
+        </div>
+        <span class="badge {{ status[2] }}">
+          {{ status[0] }} / {{ status[1] }}
+        </span>
+      </a>
+    {% endfor %}
+  {% else %}
+    <div class="empty">
+      <div class="icon">📭</div>
+      <p>لا توجد طلبات بعد<br/>No requests yet</p>
+      <a href="{{ url_for('home') }}" class="btn secondary" style="display: inline-flex; width: auto; padding: 10px 18px;">
+        إنشاء طلب جديد / New Request
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

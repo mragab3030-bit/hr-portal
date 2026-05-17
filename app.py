@@ -138,25 +138,54 @@ def get_admin_uid():
     return odoo_authenticate()
 
 
+def hr_employee_available_fields():
+    """Return the set of field names that exist on hr.employee."""
+    try:
+        info = odoo_execute("hr.employee", "fields_get", [], {"attributes": ["type"]})
+        return set(info.keys())
+    except Exception as exc:
+        app.logger.warning("fields_get failed: %s", exc)
+        return set()
+
+
 # ----------------------------------------------------------------------------
 # Employee verification
 # ----------------------------------------------------------------------------
 def search_employees(query):
-    """Search hr.employee by name or employee number."""
+    """Search hr.employee by name or employee/badge number.
+
+    Empty query → returns the first records (used by /debug and as a fallback).
+    Includes archived employees by passing active_test=False in the context.
+    Probes hr.employee fields and only includes those that exist in the search
+    domain and field list, so installs without `barcode` or a custom
+    `employee_id` field still work.
+    """
     query = (query or "").strip()
+
+    available = hr_employee_available_fields()
+    candidate_code_fields = [f for f in ("barcode", "employee_id", "identification_id") if f in available]
+    candidate_name_fields = [f for f in ("name", "work_email") if f in available] or ["name"]
+
+    base_fields = ["id", "name"]
+    for extra in ("job_title", "job_id", "department_id", "barcode", "employee_id", "active"):
+        if extra in available and extra not in base_fields:
+            base_fields.append(extra)
+
     if not query:
-        return []
-    domain = [
-        "|",
-        ("name", "ilike", query),
-        ("barcode", "ilike", query),
-    ]
-    fields = ["id", "name", "job_title", "department_id", "barcode"]
+        domain = []
+    else:
+        searchable = candidate_name_fields + candidate_code_fields
+        parts = [(f, "ilike", query) for f in searchable]
+        domain = []
+        for _ in range(len(parts) - 1):
+            domain.append("|")
+        domain.extend(parts)
+
     return odoo_execute(
         "hr.employee",
         "search_read",
         [domain],
-        {"fields": fields, "limit": 10},
+        {"fields": base_fields, "limit": 10, "context": {"active_test": False}},
     )
 
 
@@ -308,6 +337,115 @@ def login_required(view):
 # ----------------------------------------------------------------------------
 # Routes
 # ----------------------------------------------------------------------------
+def _mask(value, keep=4):
+    if not value:
+        return "(empty)"
+    s = str(value)
+    if len(s) <= keep:
+        return "*" * len(s)
+    return s[:keep] + "…" + f"({len(s)} chars)"
+
+
+@app.route("/debug", methods=["GET"])
+def debug():
+    """Diagnostics: env vars, auth, employee count, sample names, errors."""
+    report = {
+        "env": {
+            "ODOO_URL":      ODOO_URL or "(missing)",
+            "ODOO_DB":       ODOO_DB or "(missing)",
+            "ODOO_USERNAME": ODOO_USERNAME or "(missing)",
+            "ODOO_API_KEY":  _mask(ODOO_API_KEY),
+            "all_loaded":    bool(ODOO_URL and ODOO_DB and ODOO_USERNAME and ODOO_API_KEY),
+        },
+        "auth":          {"uid": None, "error": None},
+        "server_info":   {"value": None, "error": None},
+        "fields":        {"sample": None, "has_pin": None, "has_barcode": None,
+                          "has_employee_id_field": None, "error": None},
+        "employees":     {"count_active": None, "count_all": None,
+                          "sample": None, "error": None},
+        "search_test":   {"empty_query_results": None, "error": None},
+    }
+
+    # Step 1: authentication.
+    try:
+        common = xmlrpc.client.ServerProxy(
+            f"{ODOO_URL}/xmlrpc/2/common", allow_none=True, context=_ssl_context())
+        try:
+            report["server_info"]["value"] = common.version()
+        except Exception as exc:
+            report["server_info"]["error"] = repr(exc)
+        uid = common.authenticate(ODOO_DB, ODOO_USERNAME, ODOO_API_KEY, {})
+        report["auth"]["uid"] = uid
+        if not uid:
+            report["auth"]["error"] = "authenticate() returned False/None — wrong DB/username/API key."
+    except Exception as exc:
+        report["auth"]["error"] = repr(exc)
+
+    # Step 2: fields & employee data.
+    if report["auth"]["uid"]:
+        try:
+            info = odoo_execute("hr.employee", "fields_get", [],
+                                {"attributes": ["type", "string"]})
+            report["fields"]["sample"] = sorted(list(info.keys()))[:40]
+            report["fields"]["has_pin"]              = "pin" in info
+            report["fields"]["has_barcode"]          = "barcode" in info
+            report["fields"]["has_employee_id_field"] = "employee_id" in info
+        except Exception as exc:
+            report["fields"]["error"] = repr(exc)
+
+        try:
+            report["employees"]["count_active"] = odoo_execute(
+                "hr.employee", "search_count", [[]])
+            report["employees"]["count_all"] = odoo_execute(
+                "hr.employee", "search_count", [[]],
+                {"context": {"active_test": False}})
+        except Exception as exc:
+            report["employees"]["error"] = repr(exc)
+
+        try:
+            sample = odoo_execute(
+                "hr.employee", "search_read", [[]],
+                {"fields": ["id", "name", "job_id", "department_id", "active"],
+                 "limit": 3, "context": {"active_test": False}})
+            for r in sample:
+                r.pop("pin", None)
+            report["employees"]["sample"] = sample
+        except Exception as exc:
+            existing_err = report["employees"].get("error") or ""
+            report["employees"]["error"] = (existing_err + " | sample: " + repr(exc)).strip(" |")
+
+        try:
+            results = search_employees("")
+            for r in results:
+                r.pop("pin", None)
+            report["search_test"]["empty_query_results"] = results
+        except Exception as exc:
+            report["search_test"]["error"] = repr(exc)
+
+    pretty = _format_debug_html(report)
+    return pretty, 200, {"Content-Type": "text/html; charset=utf-8"}
+
+
+def _format_debug_html(report):
+    import json as _json
+    body = _json.dumps(report, indent=2, ensure_ascii=False, default=str)
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>HR Portal — Debug</title>
+<style>
+ body {{ font-family: -apple-system, Segoe UI, monospace; background: #0f172a; color: #e2e8f0; margin: 0; padding: 24px; }}
+ h1 {{ color: #22c55e; margin-top: 0; }}
+ pre {{ background: #1e293b; padding: 18px; border-radius: 10px;
+        white-space: pre-wrap; word-break: break-word; line-height: 1.5; }}
+ a {{ color: #86efac; }}
+ .note {{ color: #94a3b8; margin-bottom: 14px; font-size: 0.9rem; }}
+</style></head>
+<body>
+<h1>HR Portal — Odoo Debug</h1>
+<p class="note">Diagnostics for the Odoo XML-RPC connection. Do NOT expose this route in production once login works. <a href="/login">Back to login</a></p>
+<pre>{body}</pre>
+</body></html>"""
+
+
 @app.route("/", methods=["GET"])
 def index():
     if "employee_id" in session:
@@ -331,7 +469,11 @@ def login():
                 else:
                     candidates = search_employees(query)
                     if not candidates:
-                        flash("لم يتم العثور على موظف / No employee found.", "error")
+                        flash(
+                            "لم يتم العثور على موظف. تحقق من /debug للاتصال بـ Odoo. / "
+                            "No employee found. Check /debug for Odoo connection details.",
+                            "error",
+                        )
                     step = "select"
 
             elif action == "select":

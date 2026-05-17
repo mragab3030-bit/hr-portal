@@ -10,7 +10,7 @@
       <h1 style="margin-bottom: 4px;">{{ record.name }}</h1>
       <div class="subtitle">
         #{{ record.id }}
-        {% if record.category_id %} · {{ record.category_id[1] }}{% endif %}
+        {% if record.category_id %} · {{ record.category_id|m2o_name }}{% endif %}
       </div>
     </div>
     <span class="badge {{ status[2] }}">{{ status[0] }} / {{ status[1] }}</span>
@@ -35,7 +35,7 @@
       <div class="message">
         <div style="display: flex; justify-content: space-between; gap: 10px;">
           <span class="author">
-            {% if m.author_id %}{{ m.author_id[1] }}{% else %}System{% endif %}
+            {% if m.author_id %}{{ m.author_id|m2o_name }}{% else %}System{% endif %}
           </span>
           <span class="date">{{ m.date|fmt_date }}</span>
         </div>

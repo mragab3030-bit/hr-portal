@@ -138,54 +138,32 @@ def get_admin_uid():
     return odoo_authenticate()
 
 
-def hr_employee_available_fields():
-    """Return the set of field names that exist on hr.employee."""
-    try:
-        info = odoo_execute("hr.employee", "fields_get", [], {"attributes": ["type"]})
-        return set(info.keys())
-    except Exception as exc:
-        app.logger.warning("fields_get failed: %s", exc)
-        return set()
-
-
 # ----------------------------------------------------------------------------
 # Employee verification
 # ----------------------------------------------------------------------------
 def search_employees(query):
-    """Search hr.employee by name or employee/badge number.
+    """Search hr.employee by name (partial) or barcode (exact).
 
-    Empty query → returns the first records (used by /debug and as a fallback).
-    Includes archived employees by passing active_test=False in the context.
-    Probes hr.employee fields and only includes those that exist in the search
-    domain and field list, so installs without `barcode` or a custom
-    `employee_id` field still work.
+    Empty query → returns up to 10 active employees, no name/barcode filter.
     """
     query = (query or "").strip()
-
-    available = hr_employee_available_fields()
-    candidate_code_fields = [f for f in ("barcode", "employee_id", "identification_id") if f in available]
-    candidate_name_fields = [f for f in ("name", "work_email") if f in available] or ["name"]
-
-    base_fields = ["id", "name"]
-    for extra in ("job_title", "job_id", "department_id", "barcode", "employee_id", "active"):
-        if extra in available and extra not in base_fields:
-            base_fields.append(extra)
+    fields = ["id", "name", "job_title", "department_id", "barcode", "pin"]
 
     if not query:
-        domain = []
+        domain = [("active", "=", True)]
     else:
-        searchable = candidate_name_fields + candidate_code_fields
-        parts = [(f, "ilike", query) for f in searchable]
-        domain = []
-        for _ in range(len(parts) - 1):
-            domain.append("|")
-        domain.extend(parts)
+        domain = [
+            ("active", "=", True),
+            "|",
+            ("name", "ilike", query),
+            ("barcode", "=", query),
+        ]
 
     return odoo_execute(
         "hr.employee",
         "search_read",
         [domain],
-        {"fields": base_fields, "limit": 10, "context": {"active_test": False}},
+        {"fields": fields, "limit": 10},
     )
 
 
@@ -468,6 +446,8 @@ def login():
                     flash("الرجاء إدخال الاسم أو رقم الموظف / Please enter a name or employee number.", "error")
                 else:
                     candidates = search_employees(query)
+                    for c in candidates:
+                        c.pop("pin", None)
                     if not candidates:
                         flash(
                             "لم يتم العثور على موظف. تحقق من /debug للاتصال بـ Odoo. / "
@@ -600,6 +580,16 @@ def request_detail(request_id):
         record=record,
         messages=messages,
     )
+
+
+@app.template_filter("m2o_name")
+def m2o_name(value):
+    """Return the display name of an Odoo many2one tuple, [id, "Name"]."""
+    if not value:
+        return ""
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        return value[1]
+    return str(value)
 
 
 @app.template_filter("fmt_date")

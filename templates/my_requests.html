@@ -15,7 +15,7 @@
           <div class="name">{{ r.name }}</div>
           <div class="meta">
             #{{ r.id }}
-            {% if r.category_id %} · {{ r.category_id[1] }}{% endif %}
+            {% if r.category_id %} · {{ r.category_id|m2o_name }}{% endif %}
             · {{ r.create_date|fmt_date }}
           </div>
         </div>

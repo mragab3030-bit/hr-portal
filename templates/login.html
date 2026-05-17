@@ -40,7 +40,7 @@
                 <div class="meta">
                   {% if c.barcode %}#{{ c.barcode }}{% endif %}
                   {% if c.job_title %} · {{ c.job_title }}{% endif %}
-                  {% if c.department_id %} · {{ c.department_id[1] }}{% endif %}
+                  {% if c.department_id %} · {{ c.department_id|m2o_name }}{% endif %}
                 </div>
               </button>
             </form>
